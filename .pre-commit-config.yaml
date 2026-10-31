@@ -1,0 +1,43 @@
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-toml
+      - id: check-yaml
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-docstring-first
+
+  - repo: local
+    hooks:
+      - id: ruff
+        name: Ruff lint (project-pinned version)
+        entry: python -m ruff check
+        language: system
+        types: [python]
+        files: ^(src/|tests/|examples/|\.github/scripts/)
+      - id: ruff-format
+        name: Ruff formatting
+        entry: python -m ruff format --check
+        language: system
+        types: [python]
+        files: ^(src/|tests/|examples/|\.github/scripts/)
+      - id: commitizen
+        name: Conventional commit message
+        entry: python -m commitizen check --commit-msg-file
+        language: system
+        stages: [commit-msg]
+        always_run: true
+      - id: pytest
+        name: Full test suite
+        entry: python -m pytest
+        language: system
+        stages: [manual]
+        pass_filenames: false
+        always_run: true

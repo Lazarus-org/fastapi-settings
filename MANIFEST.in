@@ -1,0 +1,20 @@
+include LICENSE README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md RELEASING.md
+include AUTHORS.md CONTRIBUTORS.md CODE_OF_CONDUCT.md
+include tox.ini .pre-commit-config.yaml .github/dependabot.yml
+include .gitignore .gitattributes
+recursive-include src/fastapi_settings *.py py.typed
+recursive-include tests *.py
+recursive-include examples *.py *.md
+recursive-include .github/scripts *.py
+recursive-include .github/workflows *.y*ml
+global-exclude *.py[cod] .DS_Store .env .env.*
+prune .git
+prune .idea
+prune .venv
+prune .tox
+prune __pycache__
+prune .pytest_cache
+prune .mypy_cache
+prune .ruff_cache
+prune build
+prune dist

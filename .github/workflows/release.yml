@@ -1,0 +1,49 @@
+name: Release candidate
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test-release:
+    name: Full compatibility and quality validation
+    uses: ./.github/workflows/ci.yml
+
+  verify-and-build:
+    name: Build validated candidate artifacts
+    needs: test-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Verify tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import tomllib
+          version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
+          if os.environ["RELEASE_TAG"] != f"v{version}":
+              raise SystemExit("Release tag does not match project.version")
+          PY
+      - name: Install validation tools
+        run: python -m pip install -e ".[test,quality]"
+      - name: Build and validate the candidate
+        run: |
+          python -m build
+          python -m twine check --strict dist/*
+          python .github/scripts/validate_distribution.py dist --test-sdist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fastapi-settings-release-candidate
+          path: dist/*
+          if-no-files-found: error

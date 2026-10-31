@@ -1,0 +1,2 @@
+# Keep text checkouts consistent across Windows and hosted Linux runners.
+* text=auto eol=lf
