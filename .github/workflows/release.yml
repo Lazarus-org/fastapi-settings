@@ -1,24 +1,36 @@
-name: Release candidate
+name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to validate and publish (for example v1.0.0)
+        required: true
+        type: string
   push:
     tags: ["v*.*.*"]
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   test-release:
     name: Full compatibility and quality validation
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
 
   verify-and-build:
-    name: Build validated candidate artifacts
-    needs: test-release
+    name: Validate tag and build distributions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
       - uses: astral-sh/setup-uv@v7
         with:
           version: "0.13.6"
@@ -27,9 +39,8 @@ jobs:
         with:
           python-version: "3.13"
       - name: Verify tag matches the package version
-        if: startsWith(github.ref, 'refs/tags/')
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           python - <<'PY'
           import os
@@ -39,15 +50,48 @@ jobs:
           if os.environ["RELEASE_TAG"] != f"v{version}":
               raise SystemExit("Release tag does not match project.version")
           PY
+      - name: Report publishing configuration
+        env:
+          PYPI_PUBLISH_ENABLED: ${{ vars.PYPI_PUBLISH_ENABLED }}
+        run: |
+          if [ "$PYPI_PUBLISH_ENABLED" = "true" ]; then
+            echo "PyPI publishing is enabled and requires successful build and compatibility jobs." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::PyPI publishing is disabled. Set the repository variable PYPI_PUBLISH_ENABLED to true to enable the publish job."
+            echo "PyPI publishing is disabled: set PYPI_PUBLISH_ENABLED=true in repository variables." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Install validation tools
         run: uv sync --locked --python 3.13
       - name: Build and validate the candidate
         run: |
-          uv build
+          uv build --no-sources
           uv run --no-sync python -m twine check --strict dist/*
           uv run --no-sync python .github/scripts/validate_distribution.py dist --test-sdist
       - uses: actions/upload-artifact@v7
         with:
-          name: fastapi-settings-release-candidate
+          name: release-distributions
           path: dist/*
           if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && vars.PYPI_PUBLISH_ENABLED == 'true'
+    needs: [verify-and-build, test-release]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/fastapi-settings
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-distributions
+          path: dist
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.6"
+          enable-cache: false
+      - name: Publish validated artifacts using PyPI Trusted Publishing
+        run: uv publish --trusted-publishing always --publish-url https://upload.pypi.org/legacy/ --check-url https://pypi.org/simple/ dist/*

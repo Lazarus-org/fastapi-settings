@@ -249,13 +249,43 @@ uv run --locked tox -e build
 
 The validator checks metadata and archive contents, installs the wheel without optional dependencies, exercises standard-library-only operation, runs tests from extracted sources, and compares rebuilt-wheel contents.
 
-Version changes, release changelog generation, tags, and publication are maintainer release tasks. Routine contributions should retain the current version. Maintainers should verify that project metadata, the lockfile, changelog, and any proposed tag agree, and require actual successful CPython matrix results before release. The release-candidate workflow validates and retains build artifacts; it does not publish to PyPI.
+Version changes, release changelog generation, tags, and publication are maintainer release tasks. Routine contributions should retain the current version. Maintainers should verify that project metadata, the lockfile, changelog, and any proposed tag agree, and require actual successful CPython matrix results before release. The release workflow validates and retains build artifacts, then publishes them to PyPI when `PYPI_PUBLISH_ENABLED` is `true` and the `pypi` environment permits deployment.
 
 Inspect the version without changing it:
 
 ```bash
 uv run --locked cz version --project
 ```
+
+### Configure automatic PyPI publishing
+
+The workflow follows a build/test/publish split. The build and compatibility jobs have read-only permissions. Only the separate publish job receives `id-token: write`, runs in the `pypi` environment, and uploads the validated `release-distributions` artifact with `uv publish --trusted-publishing always`. No long-lived PyPI token is needed for this path.
+
+Configure these once for this repository:
+
+1. Create the GitHub environment **`pypi`**. Configure its reviewers and deployment rules as needed. Allow version-tag deployments and, if using manual recovery from `main`, that branch as well.
+2. Register a GitHub Trusted Publisher on PyPI with these exact values:
+
+   | Field | Value |
+   | --- | --- |
+   | PyPI project | `fastapi-settings` |
+   | Repository owner | `Lazarus-org` |
+   | Repository name | `fastapi-settings` |
+   | Workflow filename | `release.yml` |
+   | Environment | `pypi` |
+
+   For the first upload, use a [pending publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/). For an existing project you manage, add it in the project's [publishing settings](https://docs.pypi.org/trusted-publishers/adding-a-publisher/).
+3. Set the GitHub repository Actions variable **`PYPI_PUBLISH_ENABLED`** to **`true`**. The build job writes a visible notice and summary when publishing is disabled; passing validation alone does not mean an upload occurred.
+
+After configuration, a `v*.*.*` tag push validates and publishes the release. The publish job waits for all five CPython jobs, the quality job, and artifact validation. Environment protection rules apply before the publish job can run.
+
+### Publish an existing tag after updating the workflow
+
+A tag uses the workflow definition committed with it. Rerunning an older validation-only tag workflow does not add a publishing job.
+
+To publish the already pushed `v1.0.0` after merging this workflow update, open **Actions → Release → Run workflow**, select **`main`**, and set **`release_tag`** to **`v1.0.0`**. The updated workflow checks out that exact tag for both CI and building, verifies its package version, and publishes only after validation succeeds. Do not move or recreate the tag.
+
+The automated workflow builds and publishes its own validated artifacts. The detailed manual/TestPyPI-first procedure below is an alternative for maintainers publishing local artifacts; keep automatic publishing disabled during that manual procedure to avoid an earlier production upload.
 
 ### 1. Prepare the release branch
 
@@ -321,11 +351,11 @@ git tag -a v1.0.0 -m "Release 1.0.0"
 git push origin v1.0.0
 ```
 
-The configured tag format is `v$version`. Verify that the tag identifies the intended commit and matches `project.version`; do not move an existing published release tag. Pushing a version tag starts the release-candidate workflow, which reruns compatibility and quality checks, validates the tag, and uploads candidate artifacts. Wait for that workflow to succeed. It does **not** upload packages to TestPyPI or PyPI.
+The configured tag format is `v$version`. Verify that the tag identifies the intended commit and matches `project.version`; do not move an existing published release tag. Pushing a version tag starts the release workflow, which reruns compatibility and quality checks, validates the tag, and uploads distributions. When automatic publishing is enabled, its separate publish job downloads those same artifacts and uploads them to PyPI using Trusted Publishing. Wait for the validation and publish jobs to succeed. TestPyPI uploads remain a manual option.
 
 ### 5. Build the exact tagged artifacts
 
-Build from the release tag into an empty `dist/release` directory. Move aside older artifacts before starting so they cannot be included in an upload. If using artifacts downloaded from the successful release-candidate workflow instead, retain and validate those exact files rather than mixing them with a new build.
+Build from the release tag into an empty `dist/release` directory. Move aside older artifacts before starting so they cannot be included in an upload. If using artifacts downloaded from the successful release workflow instead, retain and validate those exact files rather than mixing them with a new build.
 
 ```bash
 git switch --detach v1.0.0
@@ -369,7 +399,7 @@ uv run --isolated --no-project --default-index https://pypi.org/simple/ --refres
 
 Confirm the version, description, license, Python support, project URLs, and both distribution files on the package index. Create the corresponding GitHub release with the reviewed changelog and, when attaching artifacts, the same validated files.
 
-Keep tokens out of source files, commits, logs, and command-line arguments. `UV_PUBLISH_TOKEN` is supported by uv; a separately configured Trusted Publisher can authenticate without a long-lived token. Trusted Publishing is not configured by the current release-candidate workflow. See [uv's publishing guide](https://docs.astral.sh/uv/guides/package/) for authentication and upload options.
+Keep tokens out of source files, commits, logs, and command-line arguments. `UV_PUBLISH_TOKEN` is supported for manual uv uploads. The automated workflow uses PyPI Trusted Publishing and requires the one-time configuration described below. See [uv's publishing guide](https://docs.astral.sh/uv/guides/package/) for authentication and upload options.
 
 ### 8. Handle an interrupted upload
 

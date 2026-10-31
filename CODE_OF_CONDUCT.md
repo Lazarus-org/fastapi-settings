@@ -165,7 +165,7 @@ git tag -a v1.0.0 -m "Release 1.0.0"
 git push origin v1.0.0
 ```
 
-The tag must match `project.version` and identify the intended commit. Wait for the release-candidate workflow to succeed. It validates the tagged candidate and retains artifacts; it does not publish to a package index. Do not move an existing published release tag.
+The tag must match `project.version` and identify the intended commit. The release workflow validates the tagged package and, when `PYPI_PUBLISH_ENABLED=true`, publishes its validated artifacts through PyPI Trusted Publishing in the `pypi` environment. Wait for both validation and publishing to succeed. The [automatic publishing setup](CONTRIBUTING.md#configure-automatic-pypi-publishing) lists the one-time GitHub and PyPI configuration. Do not move an existing published release tag.
 
 ### 11. Export Dependencies When Needed
 
@@ -192,6 +192,8 @@ uv run --locked python .github/scripts/validate_distribution.py dist/release --t
 
 The validator checks wheel and source contents, runs extracted-source tests, compares rebuilt-wheel contents, and verifies isolated runtime operation without optional dependencies. Retain the exact artifacts and printed SHA-256 hashes for release review. If using artifacts downloaded from hosted CI, validate and retain those exact files.
 
+For an already pushed tag, use the [existing-tag workflow instructions](CONTRIBUTING.md#publish-an-existing-tag-after-updating-the-workflow); moving the tag is unnecessary. The following steps describe manual publication of the local artifacts.
+
 ### 13. Publish to TestPyPI
 
 Set `UV_PUBLISH_TOKEN` in the publishing shell or secret store to the appropriate TestPyPI token, then upload the reviewed artifacts:
@@ -214,7 +216,7 @@ Use the appropriate PyPI credentials and upload the same validated wheel and sou
 uv publish --publish-url https://upload.pypi.org/legacy/ dist/release/*
 ```
 
-TestPyPI and PyPI use separate accounts and tokens. Keep tokens out of source files, commits, logs, and command-line arguments. A separately configured Trusted Publisher can authenticate without a long-lived token; the current release-candidate workflow does not configure publishing.
+TestPyPI and PyPI use separate accounts and tokens. Keep tokens out of source files, commits, logs, and command-line arguments. The automated release job uses Trusted Publishing without a long-lived token. Configure its publisher and enable variable as described in [CONTRIBUTING.md](CONTRIBUTING.md#configure-automatic-pypi-publishing). For this manual/TestPyPI-first procedure, keep automatic publishing disabled until you choose the production publishing path.
 
 Verify installation from PyPI:
 
