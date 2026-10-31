@@ -17,7 +17,7 @@ Centralized, lazy application settings for Python and FastAPI projects, with a D
 ## Installation
 
 ```bash
-uv add fastapi-settings
+pip install fastapi-settings
 ```
 
 CPython 3.11 or newer is required. Supported versions are CPython 3.11, 3.12, 3.13, 3.14, and 3.15. PyPy and other Python implementations are not currently supported. FastAPI, Pydantic, and Pydantic Settings are optional.
@@ -96,7 +96,7 @@ print(settings.database_url)
 The package preserves field names and delegates all validation, environment precedence, and dotenv behavior to Pydantic. Install Pydantic Settings separately if you use this option:
 
 ```bash
-uv add pydantic-settings
+pip install pydantic-settings
 ```
 
 **Source selection:** A module must contain either public uppercase bindings **or** one `SETTINGS` object, not both. Every public uppercase binding is a setting, whether defined locally or imported, including scalar constants, classes, functions, and intentional re-exports:
