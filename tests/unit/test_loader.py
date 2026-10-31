@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import dataclasses
 import math
+from types import SimpleNamespace
 
 import pytest
 
 from fastapi_settings import create_settings
+from fastapi_settings._loader import _executing_import
 from fastapi_settings.exceptions import (
     InvalidSettingsSourceError,
     SettingsModuleImportError,
@@ -184,3 +186,39 @@ def test_ordinary_slotted_object_is_supported():
     assert proxy.DEBUG is True
     with pytest.raises(AttributeError):
         _ = proxy._internal
+
+
+def test_inherited_string_slots_and_unset_slots_are_supported():
+    class BaseConfig:
+        __slots__ = "PORT"
+
+    class Config(BaseConfig):
+        __slots__ = ("DEBUG", "UNSET")
+
+    source = Config()
+    source.PORT = 8080
+    source.DEBUG = False
+    proxy = create_settings(settings_object=source)
+    assert proxy.PORT == 8080
+    assert proxy.DEBUG is False
+    with pytest.raises(AttributeError):
+        _ = proxy.UNSET
+
+
+def test_import_detection_fails_closed_when_frames_are_unavailable(monkeypatch):
+    monkeypatch.setattr("fastapi_settings._loader.inspect.currentframe", lambda: None)
+    assert _executing_import() is True
+
+
+@pytest.mark.parametrize("module", ["importlib._bootstrap", "_frozen_importlib"])
+@pytest.mark.parametrize("initializing", [False, True])
+def test_import_detection_uses_loader_local_spec(module, initializing):
+    # Custom loaders can carry the active spec in importlib's local frame,
+    # before a module with an initializing __spec__ is on the call stack.
+    namespace = {
+        "__name__": module,
+        "spec": SimpleNamespace(_initializing=initializing),
+        "_executing_import": _executing_import,
+    }
+    exec("result = _executing_import()", namespace)
+    assert namespace["result"] is initializing

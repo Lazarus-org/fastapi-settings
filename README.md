@@ -1,8 +1,14 @@
 # fastapi-settings
 
-![Python](https://img.shields.io/badge/requires_Python-%3E%3D3.11-blue)
-![Typing](https://img.shields.io/badge/typing-py.typed-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+[![CI](https://github.com/Lazarus-org/fastapi-settings/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Lazarus-org/fastapi-settings/actions/workflows/ci.yml)
+[![CPython](https://img.shields.io/badge/CPython-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14%20%7C%203.15-blue)](#installation)
+[![Typing](https://img.shields.io/badge/typing-py.typed-blue)](#configuration-contract)
+[![Runtime dependencies](https://img.shields.io/badge/runtime_dependencies-0-brightgreen)](https://github.com/Lazarus-org/fastapi-settings/blob/main/pyproject.toml)
+[![uv](https://img.shields.io/badge/package_manager-uv-DE5FE9)](https://docs.astral.sh/uv/)
+[![Ruff](https://img.shields.io/badge/code_style-Ruff-261230)](https://docs.astral.sh/ruff/)
+[![Conventional Commits](https://img.shields.io/badge/commits-Conventional_Commits-FE5196)](https://www.conventionalcommits.org/)
+[![License](https://img.shields.io/github/license/Lazarus-org/fastapi-settings)](https://github.com/Lazarus-org/fastapi-settings/blob/main/LICENSE)
+[![Coverage](https://codecov.io/gh/lazarus-org/dj-notification-api/branch/main/graph/badge.svg)](https://codecov.io/gh/lazarus-org/fastapi-settings)
 
 Centralized, lazy application settings for Python and FastAPI projects, with a Django-inspired import experience and no required runtime dependencies.
 
@@ -11,7 +17,7 @@ Centralized, lazy application settings for Python and FastAPI projects, with a D
 ## Installation
 
 ```bash
-pip install fastapi-settings
+uv add fastapi-settings
 ```
 
 CPython 3.11 or newer is required. Supported versions are CPython 3.11, 3.12, 3.13, 3.14, and 3.15. PyPy and other Python implementations are not currently supported. FastAPI, Pydantic, and Pydantic Settings are optional.
@@ -90,7 +96,7 @@ print(settings.database_url)
 The package preserves field names and delegates all validation, environment precedence, and dotenv behavior to Pydantic. Install Pydantic Settings separately if you use this option:
 
 ```bash
-pip install pydantic-settings
+uv add pydantic-settings
 ```
 
 **Source selection:** A module must contain either public uppercase bindings **or** one `SETTINGS` object, not both. Every public uppercase binding is a setting, whether defined locally or imported, including scalar constants, classes, functions, and intentional re-exports:
@@ -224,28 +230,28 @@ The proxy's representation never includes configuration values. Module import ex
 
 ## Development
 
-Install locally with test dependencies and run the suite:
+We use [uv](https://docs.astral.sh/uv/) to manage project environments and dependencies. We also use the `uv_build` backend to create wheels and source distributions. Plain `uv sync` installs the default `dev` group, including test and quality tools. To use the checked-in lockfile without updating it and run the suite:
 
 ```bash
-python -m pip install -e ".[test,quality]"
-python -m pytest -q
-ruff check src tests examples .github/scripts
-ruff format --check src tests examples .github/scripts
-mypy src/
+uv sync --locked
+uv run --locked pytest -q --cov=fastapi_settings
+uv run --locked ruff check src tests examples .github/scripts
+uv run --locked ruff format --check src tests examples .github/scripts
+uv run --locked mypy src/
 ```
 
-The `quality` extra pins Ruff to 0.17.3, and the Ruff configuration requires that exact version locally and in CI. Update the pin and required version together after checking the full quality suite. It also provides mypy, build, Twine, Commitizen, pre-commit, and tox. Ruff formats Python source, tests, examples, and CI scripts; Markdown is maintained separately.
+The `quality` extra pins Ruff to 0.17.3, and the Ruff configuration requires that exact version locally and in CI. Update the pin and required version together after checking the full quality suite. It also provides mypy, Twine, Commitizen, pre-commit, tox, Bandit, and TOML/tox formatters. Ruff formats Python source, tests, examples, and CI scripts; Markdown is maintained separately.
 
-Each CPython matrix job runs the full suite, builds distributions, tests the extracted source archive, compares its rebuilt wheel's contents, and installs the wheel in a fresh environment without optional dependencies. Lint, formatting, type checks, and strict package-description validation run in a separate quality job. A configured matrix is not evidence of successful execution; consult the actual workflow results for compatibility validation.
+Coverage measures both statements and branches, including subprocess import and concurrency regressions, and requires 100%. Each CPython matrix job runs the full suite with coverage, builds distributions, tests the extracted source archive, compares its rebuilt wheel's contents, and installs the wheel in a fresh environment without optional dependencies. Lint, formatting, type checks, and strict package-description validation run in a separate quality job. A configured matrix is not evidence of successful execution; consult the actual workflow results for compatibility validation.
 
 To run the same distribution validation locally after building:
 
 ```bash
-python -m build
-python -m twine check --strict dist/*
-python .github/scripts/validate_distribution.py dist --test-sdist
+uv build
+uv run --locked python -m twine check --strict dist/*
+uv run --locked python .github/scripts/validate_distribution.py dist --test-sdist
 ```
 
-Build into an empty `dist` directory. See the [contributor guide](https://github.com/Lazarus-org/fastapi-settings/blob/main/CONTRIBUTING.md), [security policy](https://github.com/Lazarus-org/fastapi-settings/blob/main/SECURITY.md), and [release checklist](https://github.com/Lazarus-org/fastapi-settings/blob/main/RELEASING.md).
+Build into an empty `dist` directory. See the [contributor guide](https://github.com/Lazarus-org/fastapi-settings/blob/main/CONTRIBUTING.md) and [security policy](https://github.com/Lazarus-org/fastapi-settings/blob/main/SECURITY.md).
 
-Use `cz commit` for Conventional Commits with the relevant issue footer. See [AUTHORS.md](https://github.com/Lazarus-org/fastapi-settings/blob/main/AUTHORS.md), [CONTRIBUTORS.md](https://github.com/Lazarus-org/fastapi-settings/blob/main/CONTRIBUTORS.md), and [CODE_OF_CONDUCT.md](https://github.com/Lazarus-org/fastapi-settings/blob/main/CODE_OF_CONDUCT.md) for project and community information.
+Use `uv run --locked cz commit` for Conventional Commits with the relevant issue footer. See [AUTHORS.md](https://github.com/Lazarus-org/fastapi-settings/blob/main/AUTHORS.md), [CONTRIBUTORS.md](https://github.com/Lazarus-org/fastapi-settings/blob/main/CONTRIBUTORS.md), and [CODE_OF_CONDUCT.md](https://github.com/Lazarus-org/fastapi-settings/blob/main/CODE_OF_CONDUCT.md) for project and community information.

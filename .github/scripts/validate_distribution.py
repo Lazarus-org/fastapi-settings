@@ -1,6 +1,6 @@
 """Validate distribution contents, isolated wheel operation, and optional sdist tests.
 
-This CI helper uses only the standard library and pip supplied by venv.
+This CI helper uses the standard library and the uv executable on PATH.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ import argparse
 import email.parser
 import hashlib
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -56,13 +57,12 @@ def _check_path(name: str) -> PurePosixPath:
 def _source_files() -> set[str]:
     required = {
         "pyproject.toml",
-        "MANIFEST.in",
         "LICENSE",
         "README.md",
         "CHANGELOG.md",
         "CONTRIBUTING.md",
         "SECURITY.md",
-        "RELEASING.md",
+        "uv.lock",
         "AUTHORS.md",
         "CONTRIBUTORS.md",
         "CODE_OF_CONDUCT.md",
@@ -117,7 +117,9 @@ def _check_metadata(metadata) -> None:
     # Current extras use simple equality markers. Do not accept active runtime
     # requirements or broaden this check into another marker-parsing engine.
     extra_markers = {
-        f'extra == "{extra}"' for extra in project["optional-dependencies"]
+        f"extra == {quote}{extra}{quote}"
+        for extra in project["optional-dependencies"]
+        for quote in ('"', "'")
     }
     for requirement in metadata.get_all("Requires-Dist", []):
         if requirement.partition(";")[2].strip() not in extra_markers:
@@ -200,13 +202,22 @@ def _check_sdist(sdist: Path) -> dict[str, bytes]:
             f"Source archive is missing required files: {sorted(required - files.keys())}"
         )
     for name in required - {"PKG-INFO"}:
-        if files[name] != (PROJECT / name).read_bytes():
+        expected = (PROJECT / name).read_bytes()
+        if name == "pyproject.toml":
+            # uv_build normalizes TOML syntax and preserves the original bytes.
+            if tomllib.loads(files[name].decode()) != tomllib.loads(expected.decode()):
+                raise RuntimeError("Source archive project configuration differs")
+            if files.get("pyproject.toml.orig") != expected:
+                raise RuntimeError("Source archive original project file differs")
+        elif files[name] != expected:
             raise RuntimeError(f"Source archive file differs from checkout: {name}")
     _check_metadata(email.parser.BytesParser().parsebytes(files["PKG-INFO"]))
     return files
 
 
-def _test_sdist(files: dict[str, bytes], wheel_contents: dict[str, bytes]) -> None:
+def _test_sdist(
+    files: dict[str, bytes], wheel_contents: dict[str, bytes], uv: str
+) -> None:
     with tempfile.TemporaryDirectory(prefix="fastapi-settings-sdist-") as directory:
         root = Path(directory)
         source = root / "source"
@@ -235,7 +246,15 @@ def _test_sdist(files: dict[str, bytes], wheel_contents: dict[str, bytes]) -> No
         )
         output = root / "rebuilt"
         subprocess.run(
-            [sys.executable, "-m", "build", "--wheel", "--outdir", str(output)],
+            [
+                uv,
+                "build",
+                "--python",
+                sys.executable,
+                "--wheel",
+                "--out-dir",
+                str(output),
+            ],
             cwd=source,
             env=env,
             check=True,
@@ -258,6 +277,9 @@ def main() -> None:
         help="Test extracted sources and compare their rebuilt wheel",
     )
     args = parser.parse_args()
+    uv = shutil.which("uv")
+    if uv is None:
+        raise RuntimeError("Install uv and ensure its executable is on PATH")
     artifact_dir = args.directory.resolve()
     wheels = list(artifact_dir.glob("*.whl"))
     sdists = list(artifact_dir.glob("*.tar.gz"))
@@ -306,7 +328,7 @@ def main() -> None:
         root = Path(directory)
         environment = root / "venv"
         subprocess.run(
-            [sys.executable, "-I", "-m", "venv", str(environment)], check=True
+            [uv, "venv", "--python", sys.executable, str(environment)], check=True
         )
         python = environment / (
             "Scripts/python.exe" if os.name == "nt" else "bin/python"
@@ -314,25 +336,22 @@ def main() -> None:
         # No index access: the wheel must install without fetching dependencies.
         subprocess.run(
             [
-                str(python),
-                "-I",
-                "-m",
+                uv,
                 "pip",
-                "--isolated",
                 "install",
+                "--python",
+                str(python),
                 "--no-index",
                 str(wheels[0]),
             ],
             check=True,
         )
         subprocess.run([str(python), "-I", "-c", probe], cwd=root, check=True)
-        subprocess.run(
-            [str(python), "-I", "-m", "pip", "--isolated", "check"], check=True
-        )
+        subprocess.run([uv, "pip", "check", "--python", str(python)], check=True)
 
     print("Wheel, source distribution, and dependency isolation checks passed.")
     if args.test_sdist:
-        _test_sdist(sdist_files, wheel_contents)
+        _test_sdist(sdist_files, wheel_contents, uv)
 
 
 if __name__ == "__main__":
