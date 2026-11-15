@@ -20,6 +20,9 @@ concurrency:
 jobs:
   test-release:
     name: Full compatibility and quality validation
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}

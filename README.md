@@ -8,7 +8,7 @@
 [![Ruff](https://img.shields.io/badge/code_style-Ruff-261230)](https://docs.astral.sh/ruff/)
 [![Conventional Commits](https://img.shields.io/badge/commits-Conventional_Commits-FE5196)](https://www.conventionalcommits.org/)
 [![License](https://img.shields.io/github/license/Lazarus-org/fastapi-settings)](https://github.com/Lazarus-org/fastapi-settings/blob/main/LICENSE)
-[![Coverage](https://codecov.io/gh/lazarus-org/dj-notification-api/branch/main/graph/badge.svg)](https://codecov.io/gh/lazarus-org/fastapi-settings)
+[![Coverage](https://codecov.io/gh/lazarus-org/fastapi-settings/branch/main/graph/badge.svg)](https://codecov.io/gh/lazarus-org/fastapi-settings)
 
 Centralized, lazy application settings for Python and FastAPI projects, with a Django-inspired import experience and no required runtime dependencies.
 
@@ -242,7 +242,7 @@ uv run --locked mypy src/
 
 The `quality` extra pins Ruff to 0.17.3, and the Ruff configuration requires that exact version locally and in CI. Update the pin and required version together after checking the full quality suite. It also provides mypy, Twine, Commitizen, pre-commit, tox, Bandit, and TOML/tox formatters. Ruff formats Python source, tests, examples, and CI scripts; Markdown is maintained separately.
 
-Coverage measures both statements and branches, including subprocess import and concurrency regressions, and requires 100%. Each CPython matrix job runs the full suite with coverage, builds distributions, tests the extracted source archive, compares its rebuilt wheel's contents, and installs the wheel in a fresh environment without optional dependencies. Lint, formatting, type checks, and strict package-description validation run in a separate quality job. A configured matrix is not evidence of successful execution; consult the actual workflow results for compatibility validation.
+Coverage measures both statements and branches, including subprocess import and concurrency regressions, and requires 100%. Each CPython matrix job runs the full suite with coverage, builds distributions, tests the extracted source archive, compares its rebuilt wheel's contents, and installs the wheel in a fresh environment without optional dependencies. A separate job combines coverage from all five interpreters, requires 100%, and saves the XML report as an artifact. Runs on main upload this report to Codecov using GitHub OIDC, without a stored Codecov token; uploads fail the job if Codecov reports an error. Pull requests and release validations retain the combined report without uploading it. The repository must be activated in Codecov for uploads to succeed. Lint, formatting, type checks, and strict package-description validation run in a separate quality job. A configured matrix is not evidence of successful execution; consult the actual workflow results for compatibility validation.
 
 To run the same distribution validation locally after building:
 

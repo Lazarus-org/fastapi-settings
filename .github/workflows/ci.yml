@@ -20,6 +20,8 @@ jobs:
   tests:
     name: CPython ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    env:
+      COVERAGE_FILE: .coverage.${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
@@ -44,10 +46,63 @@ jobs:
           uv run --no-sync python -c "import sys, fastapi, httpx, pydantic_settings; assert sys.implementation.name == 'cpython'; print(sys.version)"
       - name: Run the full test suite with 100% coverage
         run: uv run --no-sync python -m pytest --cov=fastapi_settings
+      - name: Save interpreter coverage data
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: .coverage.${{ matrix.python-version }}
+          include-hidden-files: true
+          if-no-files-found: error
       - name: Build wheel and source distribution
         run: uv build
       - name: Verify distributions and dependency isolation
         run: uv run --no-sync python .github/scripts/validate_distribution.py dist --test-sdist
+
+  coverage:
+    name: Combined statement and branch coverage
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.6"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install coverage tools
+        run: uv sync --locked --python 3.13
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+      - name: Require complete combined coverage
+        run: |
+          uv run --no-sync coverage combine
+          uv run --no-sync coverage report --fail-under=100
+          uv run --no-sync coverage xml --fail-under=100
+      - uses: actions/upload-artifact@v7
+        with:
+          name: combined-coverage
+          path: coverage.xml
+          if-no-files-found: error
+      - name: Upload combined main-branch coverage to Codecov
+        if: github.ref == 'refs/heads/main' && inputs.ref == ''
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          use_oidc: true
+          files: ./coverage.xml
+          disable_search: true
+          fail_ci_if_error: true
+          name: combined-interpreter-coverage
 
   quality:
     name: Lint, types, hooks, and metadata
